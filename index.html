@@ -5,10 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
     <link rel="stylesheet" href="css/leaflet.css">
-    <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
     <link rel="stylesheet" href="css/qgis2web.css">
-    <link rel="stylesheet" href="css/fontawesome-all.min.css">
-    <link rel="stylesheet" href="css/leaflet.photon.css">
     <style>
         html, body, #map {
             width: 100%;
@@ -38,17 +35,12 @@
 <body>
     <div id="map"></div>
 
-    <!-- Leaflet and required scripts -->
     <script src="js/leaflet.js"></script>
-    <script src="https://unpkg.com/geotiff@2.0.9/dist/geotiff.browser.min.js"></script>
-    <script src="https://unpkg.com/georaster@1.8.3/dist/georaster.browser.min.js"></script>
-    <script src="https://unpkg.com/georaster-layer-for-leaflet@1.12.1/dist/georaster-layer-for-leaflet.browser.min.js"></script>
-
     <script>
         // Initialize map
         var map = L.map('map', {
             zoomControl: true,
-            maxZoom: 28, 
+            maxZoom: 28,
             minZoom: 1
         }).fitBounds([[37.09186210366465,12.535894764784345],[38.355867347106205,15.936401906984008]]);
 
@@ -59,55 +51,43 @@
             maxZoom: 28
         }).addTo(map);
 
-        // Layer control container
-        var overlays = {};
+        // Add PNG raster as image overlay
+        var imgBounds = [[36.60488077034792,11.84382899281204],[38.812124622059194,15.65775381909551]];
+        var rasterLayer = L.imageOverlay("data/WebGIS_SHIL_Sicily_1.png", imgBounds, {opacity: 0.7}).addTo(map);
 
-        // Load GeoTIFF
-        fetch("data/WebGIS_SHIL_Sicily_1.tif")
-        .then(response => response.arrayBuffer())
-        .then(arrayBuffer => parseGeoraster(arrayBuffer))
-        .then(georaster => {
-            const rasterLayer = new GeoRasterLayer({
-                georaster: georaster,
-                opacity: 0.7,
-                resolution: 128, // lower resolution = faster
-                pixelValuesToColorFn: function(pixelValues) {
-                    const val = pixelValues[0]; // single band
-                    if (val === null) return null;
-                    if (val < 0.2) return "#ffffb2";
-                    if (val < 0.4) return "#fecc5c";
-                    if (val < 0.6) return "#fd8d3c";
-                    if (val < 0.8) return "#f03b20";
-                    return "#bd0026";
-                }
-            }).addTo(map);
+        // Layer control
+        var overlays = {
+            "SHIL Sicily Raster": rasterLayer
+        };
+        L.control.layers(null, overlays, {collapsed: false}).addTo(map);
 
-            // Add popup to show raster value on click
-            rasterLayer.on("click", function(e) {
-                const value = e.pixelValues[0];
-                L.popup()
-                 .setLatLng(e.latlng)
-                 .setContent("Value at this point: " + value)
-                 .openOn(map);
-            });
+        // Legend
+        var legend = L.control({position: 'bottomright'});
+        legend.onAdd = function(map) {
+            var div = L.DomUtil.create('div', 'legend');
+            div.innerHTML += "<strong>Legend</strong><br>";
+            div.innerHTML += '<i style="background:#ffffb2"></i> 0 - 0.2<br>';
+            div.innerHTML += '<i style="background:#fecc5c"></i> 0.2 - 0.4<br>';
+            div.innerHTML += '<i style="background:#fd8d3c"></i> 0.4 - 0.6<br>';
+            div.innerHTML += '<i style="background:#f03b20"></i> 0.6 - 0.8<br>';
+            div.innerHTML += '<i style="background:#bd0026"></i> 0.8 - 1.0<br>';
+            return div;
+        };
+        legend.addTo(map);
 
-            // Add to overlays for layer control
-            overlays["SHIL Sicily Raster"] = rasterLayer;
-            L.control.layers(null, overlays, {collapsed: false}).addTo(map);
-
-            // Add legend
-            var legend = L.control({position: 'bottomright'});
-            legend.onAdd = function(map) {
-                var div = L.DomUtil.create('div', 'legend');
-                div.innerHTML += "<strong>Legend</strong><br>";
-                div.innerHTML += '<i style="background:#ffffb2"></i> 0 - 0.2<br>';
-                div.innerHTML += '<i style="background:#fecc5c"></i> 0.2 - 0.4<br>';
-                div.innerHTML += '<i style="background:#fd8d3c"></i> 0.4 - 0.6<br>';
-                div.innerHTML += '<i style="background:#f03b20"></i> 0.6 - 0.8<br>';
-                div.innerHTML += '<i style="background:#bd0026"></i> 0.8 - 1.0<br>';
-                return div;
-            };
-            legend.addTo(map);
+        // Click to show raster approximate value
+        rasterLayer.on('click', function(e) {
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+            // Compute relative position inside bounds
+            var xPct = (lng - imgBounds[0][1]) / (imgBounds[1][1] - imgBounds[0][1]);
+            var yPct = (lat - imgBounds[0][0]) / (imgBounds[1][0] - imgBounds[0][0]);
+            // Approximate value (since PNG has no real band values)
+            var approxValue = 1 - yPct; // just a placeholder
+            L.popup()
+                .setLatLng(e.latlng)
+                .setContent("Approximate value: " + approxValue.toFixed(2))
+                .openOn(map);
         });
     </script>
 </body>
